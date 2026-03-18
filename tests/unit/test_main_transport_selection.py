@@ -36,7 +36,10 @@ class TestMainTransportSelection:
         """
         with patch("mcp_atlassian.servers.main.AtlassianMCP", return_value=mock_server):
             with patch.dict("os.environ", {"TRANSPORT": transport}):
-                with patch("sys.argv", ["mcp-atlassian"]):
+                args = ["mcp-atlassian"]
+                if transport == "streamable-http":
+                    args.extend(["--port", "8080"])
+                with patch("sys.argv", args):
                     try:
                         main()
                     except SystemExit:
@@ -78,7 +81,7 @@ class TestMainTransportSelection:
                 "os.environ",
                 {"STATELESS": stateless, "TRANSPORT": "streamable-http"},
             ):
-                with patch("sys.argv", ["mcp-atlassian"]):
+                with patch("sys.argv", ["mcp-atlassian", "--port", "8080"]):
                     try:
                         main()
                     except SystemExit:
@@ -92,16 +95,24 @@ class TestMainTransportSelection:
                     desired = stateless.lower() == "true"
                     assert call_kwargs["stateless_http"] == desired
 
+    def test_streamable_http_requires_explicit_port_arg(self, mock_asyncio_run):
+        with patch.dict("os.environ", {"TRANSPORT": "streamable-http"}):
+            with patch("sys.argv", ["mcp-atlassian"]):
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
+
+                assert exc_info.value.code == 2
+
     @pytest.mark.parametrize("transport", ["stdio", "sse"])
     def test_stateless_rejects_non_streamable_http(self, mock_asyncio_run, transport):
-        """Verify that --stateless flag errors when used with non-streamable-http transport."""
+        """Verify --stateless errors with non-streamable-http transports."""
         with patch.dict("os.environ", {"STATELESS": "true", "TRANSPORT": transport}):
             with patch("sys.argv", ["mcp-atlassian"]):
                 with pytest.raises(SystemExit) as exc_info:
                     main()
 
-                # Should exit with code 1 (error)
-                assert exc_info.value.code == 1
+                # Click parameter validation exits with code 2
+                assert exc_info.value.code == 2
 
     def test_cli_overrides_env_transport(self, mock_server, mock_asyncio_run):
         """Test that CLI transport argument overrides environment variable."""
@@ -181,7 +192,7 @@ class TestMainTransportSelection:
                         # The main function logs the error and exits with code 1
                         with patch("sys.exit") as mock_exit:
                             main()
-                            # Verify error was handled - sys.exit called with 1 for error
+                            # Verify error handling via sys.exit(1) for startup failure
                             # and then with 0 in the finally block
                             assert mock_exit.call_count == 2
                             assert mock_exit.call_args_list[0][0][0] == 1  # Error exit
