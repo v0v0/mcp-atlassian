@@ -94,3 +94,35 @@ git checkout -b fix/issue-description # Bug fix
 git commit --trailer "Reported-by:<name>"      # Attribution
 git commit --trailer "Github-Issue:#<number>"  # Issue reference
 ```
+
+---
+
+## Fork-specific guidance (enterprise transport)
+
+- Preserve existing MCP tool definitions and names; organize registration only.
+- Preferred production transport is `streamable-http` with `--host 127.0.0.1`.
+- Keep `stdio` available and working for local development.
+- CLI/config precedence: **CLI args > environment variables > defaults**.
+- Required for streamable-http startup: explicit `--port`.
+
+### Where to add new code
+
+- Runtime config/precedence: `src/mcp_atlassian/config/`
+- Transport bootstrap logic: `src/mcp_atlassian/transport/`
+- Atlassian runtime env-bridge/wrappers: `src/mcp_atlassian/atlassian/`
+- Existing tool definitions remain under: `src/mcp_atlassian/servers/`
+
+### Validation checklist for changes
+
+```bash
+uv run pytest tests/unit/config/test_runtime.py -xvs
+uv run pytest tests/unit/test_main_transport_selection.py -xvs
+uv run pytest tests/unit/servers/test_main_server.py -xvs
+```
+
+When transport changes are made, validate both modes:
+
+```bash
+uv run mcp-atlassian --transport stdio --help
+uv run mcp-atlassian --transport streamable-http --host 127.0.0.1 --port 8080
+```
